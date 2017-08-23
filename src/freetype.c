@@ -2,6 +2,15 @@
 
 #include <stdio.h>
 
+#ifdef __WIN32
+
+int ft_main(int argc, char *argv[])
+{
+  return 1;
+}
+
+#else // __linux
+
 #include <ft2build.h>
 #include FT_FREETYPE_H
 
@@ -90,3 +99,5 @@ int ft_main(int argc, char *argv[])
 
   return EXIT_SUCCESS;
 }
+
+#endif // __linux

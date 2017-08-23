@@ -1,10 +1,10 @@
 ## Sandbox makefile
 
 TARGET = sandbox
-DEPS = freetype2 ncurses
+LINDEPS = freetype2 ncurses
+WINDEPS = ncurses
 CC = gcc
 CXX = g++
-CFLAGS = -g -Wall $(shell pkg-config --cflags $(DEPS))
 
 IDIR = include
 BDIR = bin
@@ -12,7 +12,17 @@ SDIR = src
 ODIR = obj
 LDIR = lib
 
-LIBS = -l:libpcre.a -lpthread -lm $(shell pkg-config --libs $(DEPS))
+ifeq ($(OS),Windows_NT)
+  DEPS = $(WINDEPS)
+  LIBDIRS = -L$(LDIR) -LC:/msys64/mingw64/lib
+  LIBS = -l:libpcre.a -lpthread -lm $(shell pkg-config --libs $(DEPS))
+else
+  DEPS = $(LINDEPS)
+  LIBDIRS = -L$(LDIR) -L/usr/lib -L/usr/lib64
+  LIBS = -l:libpcre.a -lpthread -lm $(shell pkg-config --libs $(DEPS))
+endif
+
+CFLAGS = -g -Wall $(shell pkg-config --cflags $(DEPS))
 
 SRC = $(wildcard $(SDIR)/*.c)
 
@@ -26,7 +36,7 @@ $(ODIR)/%.o: $(SDIR)/%.c
 	$(CC) -c -o $@ $< -I$(IDIR) $(CFLAGS)
 
 build: $(OBJ)
-	$(CC) -o $(BIN) $^ -I$(IDIR) $(CFLAGS) -L$(LDIR) -L/usr/lib -L/usr/lib64 $(LIBS)
+	$(CC) -o $(BIN) $^ -I$(IDIR) $(CFLAGS) $(LIBDIRS) $(LIBS)
 
 .PHONY: clean
 

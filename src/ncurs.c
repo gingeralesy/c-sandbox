@@ -22,7 +22,7 @@
 #define MAX_CHAR (1024)
 
 #define NCURS_PROC_INITIALIZER                          \
-  { 0, 0, 0, 0, {0}, 0, {0}, TICKET_MUTEX_INITIALIZER, 0 }
+  { 0, 0, 0, 0, {0}, 0, {0}, TICKET_MUTEX_INITIALIZER, TICKET_MUTEX_INITIALIZER, 0 }
 
 typedef struct sandbox_ncurs_process {
   WINDOW *main;
@@ -33,6 +33,7 @@ typedef struct sandbox_ncurs_process {
   unsigned int queue_count;
   chtype ch_queue[MAX_CHAR];
   ticket_mutex sb_lock;
+  ticket_mutex write_lock;
   FILE *debuglog;
 } NCursProc;
 
@@ -156,7 +157,26 @@ void * raise_signal(void *params)
 {
   if (params)
   {
-    int sig = (int)(*((int *)params));
+    const char *msg_format = "Raising signal %s.";
+    char buffer[32] = {0};
+    NCursProc *proc = NULL;
+    int sig = 0;
+    size_t i = 0;
+    memcpy(&proc, params, sizeof(NCursProc *));
+    memcpy(&sig, params + sizeof(NCursProc *), sizeof(int));
+
+    switch(sig)
+    {
+    case SIGINT:
+      i = sprintf(buffer, msg_format, "SIGINT");
+      break;
+    default:
+      i = sprintf(buffer, msg_format, "UNKNOWN_SIGNAL");
+      break;
+    }
+    buffer[i] = '\0';
+    writelog(proc, buffer);
+    
     raise(sig);
     gc_free(params);
   }
@@ -255,17 +275,39 @@ void handle_input(NCursProc *proc, chtype input)
   {
     char chbuffer[32] = {0};
     chtype buffer[32] = {0};
-    int *sigparam = NULL;
+    int i = 0;
+    void *sigparam = NULL;
+    int sigint = SIGINT;
+    gc_error error = GC_NO_ERROR;
     switch (input)
     {
     case 'q':
     case EOF:
-      sigparam = (int *)gc_alloc(sizeof(int));
-      (*sigparam) = SIGINT;
-      start_process(proc, &raise_signal, sigparam);
+      sigparam = gc_alloc_err(sizeof(NCursProc *) + sizeof(int), &error);
+      if (sigparam)
+      {
+        memcpy(sigparam, &proc, sizeof(int));
+        memcpy(sigparam + sizeof(NCursProc *), &sigint, sizeof(int));
+        if (!start_process(proc, &raise_signal, sigparam))
+        {
+          writelog(proc,
+                   " !!! Failed to raise interrupt signal through a thread !!!");
+          raise(SIGINT);
+        }
+      }
+      else
+      {
+        i =
+          sprintf(chbuffer,
+                  " !!! Failed to allocate memory for a signal due to: '%s' !!!",
+                  gc_error_string(error));
+        writelog(proc, chbuffer);
+        raise(SIGINT);
+      }
       break;
     default:
-      sprintf(chbuffer, "key %s : %d", keyname(input), input);
+      i = sprintf(chbuffer, "key %s : %d", keyname(input), input);
+      chbuffer[i] = '\0';
       erase();
       if (0 < to_curse_string(buffer, chbuffer, 32))
         mvaddchstr(0, 0, buffer);
@@ -280,7 +322,8 @@ SB_bool start_process(NCursProc *proc, void * (*routine)(void *), void *arg)
   if (proc->running && proc->current_processes < MAX_PROCESSES &&
       pthread_create(&thread, NULL, routine, arg) == SB_success)
   {
-    proc->processes[proc->current_processes++] = thread;
+    proc->processes[proc->current_processes] = thread;
+    proc->current_processes += 1;
     return SB_true;
   }
   return SB_false;
@@ -348,11 +391,12 @@ unsigned int add_main_process(NCursProc *proc)
 
 void writelog(NCursProc *proc, const char *message)
 {
+  ticket_lock(&proc->write_lock);
   if (message)
   {
     if (!proc->debuglog)
     {
-      char filename[128];
+      char filename[128] = {0};
       sprintf(filename, "debug.log.%u", proc->pid);
       remove(filename);
       proc->debuglog = fopen(filename,"w");
@@ -372,6 +416,7 @@ void writelog(NCursProc *proc, const char *message)
     fclose(proc->debuglog);
     proc->debuglog = NULL;
   }
+  ticket_unlock(&proc->write_lock);
 }
 
 // --- Public ---
@@ -396,10 +441,12 @@ int ncurs_main(int argc, char *argv[])
       {
         retval = SB_success;
         writelog(&proc, "Waiting for threads");
-        for (i = 0; i < proc.current_processes; i++)
+        i = 0;
+        while (i < proc.current_processes)
         {
           writelog(&proc, "Thread finished");
           pthread_join(proc.processes[i], NULL);
+          i += 1;
         }
         writelog(&proc, "Done");
       }

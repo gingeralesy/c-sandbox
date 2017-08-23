@@ -1,39 +1,107 @@
 #include "memory.h"
 
-#include "rbtree.h"
 #include "ticket.h"
 #include "common.h"
 
-#define DEFAULT_INITIAL_SIZE (524288)    // 512 kB
-#define DEFAULT_MAX_SIZE     (536870912) // 512 MB
+#define BLOCK_HEADER "BLOCK"
+#define BLOCK_HEADER_LENGTH (5)
+
+#define DEFAULT_INITIAL_SIZE ((uint32_t)524288)    // 512 kB
+#define DEFAULT_MAX_SIZE     ((uint32_t)536870912) // 512 MB
+
+typedef struct gc_memory_block_t gc_block;
 
 typedef struct gc_memory_block_t
 {
+  char head[BLOCK_HEADER_LENGTH];
   gc_bool marked;
-  uint64_t start;
-  uint64_t size;
-} gc_memory_block;
+  size_t size;
+  uint32_t ref_count;
+  gc_block *references;
+  int8_t data;
+} gc_block;
 
-static char * gc_memory = NULL;
-static rbt_node * gc_blocks = NULL;
+static int8_t *gc_memory = NULL;
 
-static uint64_t gc_current_size = 0;
-static uint64_t gc_max_size = 0;
+static uint32_t gc_current_size = 0;
+static uint32_t gc_max_size = 0;
 
 static ticket_mutex lock = TICKET_MUTEX_INITIALIZER;
 
 
-static void block_free(void *);
+static gc_block * alloc_space(size_t);
+static gc_block * get_block(void *);
 
 
-void block_free(void *block)
+gc_block * alloc_space(size_t size)
 {
-  gc_memory_block *_block = (gc_memory_block *)block;
-  free(_block);
+  gc_block *block = NULL;
+  gc_block *tmp = NULL;
+  uint32_t i = 0;
+  uint32_t start = 0;
+  size_t block_size = sizeof(gc_block);
+  size_t needed = size + block_size;
+
+  for (i = 0; i < gc_current_size; i++)
+  {
+    if (needed <= i - start)
+    {
+      block = (gc_block *)(&(gc_memory[start]));
+      break;
+    }
+
+    if (memcmp((&(gc_memory[i])), BLOCK_HEADER, BLOCK_HEADER_LENGTH) == 0)
+    {
+      tmp = (gc_block *)(&(gc_memory[i]));
+      if (!tmp->marked)
+      {
+        i += tmp->size + block_size;
+        start = i;
+      }
+    }
+  }
+
+  if (!block && gc_current_size < gc_max_size &&
+      needed <= gc_max_size - gc_current_size)
+  {
+    int8_t *tmp_memory = NULL;
+    uint32_t new_size = 0;
+    new_size =
+      min((gc_current_size * max(needed / gc_current_size, 2)),
+          gc_max_size);
+    tmp_memory = gc_memory;
+    gc_memory = (int8_t *)calloc(new_size,sizeof(int8_t));
+    memcpy(gc_memory, tmp_memory, gc_current_size);
+    free(tmp_memory);
+    block = (gc_block *)(&(gc_memory[gc_current_size]));
+    gc_current_size = new_size;
+  }
+
+  if (block)
+  {
+    memcpy(block->head, BLOCK_HEADER, BLOCK_HEADER_LENGTH);
+    block->size = size;
+    memset((void *)(&(block->data)), 0, size);
+  }
+
+  return block;
+}
+
+gc_block * get_block(void *pointer)
+{
+  gc_block *block = NULL;
+  int64_t pint = 0;
+  void *spot = NULL;
+  
+  pint = (int64_t)pointer - (int64_t)gc_memory - (int64_t)sizeof(gc_block);
+  spot = (&(gc_memory[pint]));
+  if (0 <= pint && memcmp(spot, BLOCK_HEADER, BLOCK_HEADER_LENGTH) == 0)
+    block = (gc_block *)spot;
+  return block;
 }
 
 
-gc_bool gc_init(uint64_t initial_size, uint64_t max_size)
+gc_bool gc_init(uint32_t initial_size, uint32_t max_size)
 {
   return gc_init_err(initial_size, max_size, NULL);
 }
@@ -53,13 +121,13 @@ gc_bool gc_destroy()
   return gc_destroy_err(NULL);
 }
 
-gc_bool gc_init_err(uint64_t initial_size, uint64_t max_size, gc_error *error)
+gc_bool gc_init_err(uint32_t initial_size, uint32_t max_size, gc_error *error)
 {
   gc_bool retval = (gc_memory ? GC_TRUE : GC_FALSE);
   if (!gc_memory)
   {
-    uint64_t _initial_size = initial_size;
-    uint64_t _max_size = max_size;
+    uint32_t _initial_size = initial_size;
+    uint32_t _max_size = max_size;
     if (_initial_size == 0)
       _initial_size = DEFAULT_INITIAL_SIZE;
     if (_max_size == 0)
@@ -68,7 +136,7 @@ gc_bool gc_init_err(uint64_t initial_size, uint64_t max_size, gc_error *error)
     ticket_lock(&lock);
     if (!gc_memory)
     {
-      gc_memory = (char *)calloc(_initial_size,sizeof(char));
+      gc_memory = (int8_t *)calloc(_initial_size,sizeof(int8_t));
       if (gc_memory)
       {
         gc_current_size = _initial_size;
@@ -91,122 +159,17 @@ gc_bool gc_init_err(uint64_t initial_size, uint64_t max_size, gc_error *error)
 void * gc_alloc_err(size_t size, gc_error *error)
 {
   void * retptr = NULL;
-  size_t _size = size / sizeof(char);
+  size_t _size = size / sizeof(int8_t);
   if (gc_init_err(DEFAULT_INITIAL_SIZE, DEFAULT_MAX_SIZE, error))
   {
-    rbt_node *node = NULL;
-    gc_memory_block *block = NULL;
-    gc_memory_block *next_block = NULL;
+    gc_block *block = NULL;
     
     ticket_lock(&lock);
-    node = rbt_get_first(gc_blocks, NULL, (void **)&block);
-    if (node)
-    {
-      do
-      {
-        node = rbt_get_next(node, NULL, (void **)&next_block);
-        if (block)
-        {
-          uint64_t new_start = block->start + block->size;
-          if ((!next_block && _size + new_start <= gc_max_size) ||
-              (next_block && _size <= next_block->start - new_start))
-          {
-            void *old_block = NULL;
-            gc_memory_block *new_block = NULL;
-            if (gc_current_size < new_start + _size)
-            {
-              char *new_memory = NULL;
-              char *tmp_memory = NULL;
-              uint64_t new_size = gc_current_size;
-              do
-              {
-                new_size = 2 * new_size;
-              } while (new_size < new_start + _size);
-
-              new_size = min(gc_max_size, new_size);
-              if (gc_current_size == new_size || new_size < new_start + _size)
-                break;
-
-              new_memory = (char *)calloc(new_size,sizeof(char));
-              if (!new_memory)
-                break;
-
-              memcpy(new_memory, gc_memory, gc_current_size);
-
-              tmp_memory = gc_memory;
-              gc_memory = new_memory;
-              free(tmp_memory);
-            }
-
-            new_block = (gc_memory_block *)calloc(1,sizeof(gc_memory_block));
-            if (!new_block)
-              break;
-
-            new_block->start = new_start;
-            new_block->size = _size;
-            gc_blocks =
-              rbt_put(gc_blocks, new_start, new_block, sizeof(gc_memory_block),
-                      &old_block);
-            retptr = (void *)(gc_memory + (new_start * sizeof(char)));
-
-            if (old_block)
-              block_free(old_block);
-            old_block = NULL;
-            break;
-          }
-        }
-        block = next_block;
-      } while (node);
-    }
-    else if (_size <= gc_max_size)
-    {
-      void *old_block = NULL;
-      gc_memory_block *new_block = NULL;
-      if (gc_current_size < _size)
-      {
-        char *new_memory = NULL;
-        char *tmp_memory = NULL;
-        do
-        {
-          gc_current_size = 2 * gc_current_size;
-        } while (gc_current_size < _size);
-        gc_current_size = min(gc_max_size, gc_current_size);
-
-        new_memory = (char *)calloc(gc_current_size,sizeof(char));
-        if (!new_memory)
-        {
-          if (error)
-            (*error) = GC_OUT_OF_MEMORY_ERROR;
-          return NULL;
-        }
-
-        memcpy(new_memory, gc_memory, gc_current_size);
-
-        tmp_memory = gc_memory;
-        gc_memory = new_memory;
-        free(tmp_memory);
-      }
-
-      new_block = (gc_memory_block *)calloc(1,sizeof(gc_memory_block));
-      if (!new_block)
-      {
-        if (error)
-          (*error) = GC_OUT_OF_MEMORY_ERROR;
-        return NULL;
-      }
-
-      new_block->start = 0;
-      new_block->size = _size;
-      gc_blocks =
-        rbt_put(gc_blocks, 0, new_block, sizeof(gc_memory_block), &old_block);
-      retptr = (void *)(gc_memory);
-
-      if (old_block)
-        block_free(old_block);
-      old_block = NULL;
-    }
+    block = alloc_space(_size);
+    if (block)
+      retptr = (void *)(&(block->data));
     ticket_unlock(&lock);
-    
+
     if (error)
       (*error) = (retptr ? GC_NO_ERROR : GC_OUT_OF_MEMORY_ERROR);
   }
@@ -222,22 +185,16 @@ gc_bool gc_free_err(void *pointer, gc_error *error)
   gc_bool retval = GC_FALSE;
   if (gc_memory)
   {
+    gc_block *block = NULL;
     ticket_lock(&lock);
-    int64_t pint = (int64_t)pointer - (int64_t)gc_memory;
-    if (0 <= pint && gc_blocks)
+    block = get_block(pointer);
+    if (block)
     {
-      gc_memory_block *block = (gc_memory_block *)rbt_get(gc_blocks, pint);
-      if (block)
-      {
-        block->marked = GC_TRUE;
-        if (error)
-          (*error) = GC_NO_ERROR;
-        retval = GC_TRUE;
-      }
-      else
-      {
-        (*error) = GC_INVALID_INPUT_ERROR;
-      }
+      block->marked = GC_TRUE;
+      retval = GC_TRUE;
+      memset((void *)(&(block->data)), 0, block->size);
+      if (error)
+        (*error) = GC_NO_ERROR;
     }
     else if (error)
     {
@@ -257,16 +214,10 @@ gc_bool gc_destroy_err(gc_error *error)
   ticket_lock(&lock);
   if (gc_memory)
   {
-    char *tmp_mem = gc_memory;
+    int8_t *tmp_mem = gc_memory;
     gc_memory = NULL;
+    memset(tmp_mem, 0, gc_current_size);
     free(tmp_mem);
-  }
-
-  if (gc_blocks)
-  {
-    rbt_node *tmp_rbt = gc_blocks;
-    gc_blocks = NULL;
-    rbt_free(tmp_rbt, block_free);
   }
 
   gc_current_size = 0;
@@ -274,4 +225,21 @@ gc_bool gc_destroy_err(gc_error *error)
   ticket_unlock(&lock);
 
   return GC_TRUE;
+}
+
+const char * gc_error_string(gc_error error)
+{
+  switch(error)
+  {
+  case GC_NO_ERROR:
+    return "No error.";
+  case GC_OUT_OF_MEMORY_ERROR:
+    return "Out of memory error.";
+  case GC_INVALID_INPUT_ERROR:
+    return "Invalid input error.";
+  case GC_UNINITIALIZED_ERROR:
+    return "Uninitialised error.";
+  default:
+    return "No such error.";
+  }
 }

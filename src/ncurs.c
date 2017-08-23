@@ -15,6 +15,7 @@
 
 #include "common.h"
 #include "ticket.h"
+#include "memory.h"
 
 #define MAX_MAIN_PROCESSES (8)
 #define MAX_PROCESSES (64)
@@ -157,7 +158,7 @@ void * raise_signal(void *params)
   {
     int sig = (int)(*((int *)params));
     raise(sig);
-    free(params);
+    gc_free(params);
   }
   return NULL;
 }
@@ -259,7 +260,7 @@ void handle_input(NCursProc *proc, chtype input)
     {
     case 'q':
     case EOF:
-      sigparam = (int *)calloc(1,sizeof(int));
+      sigparam = (int *)gc_alloc(sizeof(int));
       (*sigparam) = SIGINT;
       start_process(proc, &raise_signal, sigparam);
       break;
@@ -382,26 +383,30 @@ int ncurs_main(int argc, char *argv[])
   exit_value retval = SB_failure;
   NCursProc proc = NCURS_PROC_INITIALIZER;
 
-  pid = add_main_process(&proc);
-  if (0 < pid)
+  if (gc_init(0, 0))
   {
-    proc.pid = pid;
-    init(&proc);
-    writelog(&proc, "Starting threads");
-    if (start_process(&proc, &queue_input, &proc) &&
-        start_process(&proc, &update, &proc))
+    pid = add_main_process(&proc);
+    if (0 < pid)
     {
-      retval = SB_success;
-      writelog(&proc, "Waiting for threads");
-      for (i = 0; i < proc.current_processes; i++)
+      proc.pid = pid;
+      init(&proc);
+      writelog(&proc, "Starting threads");
+      if (start_process(&proc, &queue_input, &proc) &&
+          start_process(&proc, &update, &proc))
       {
-        writelog(&proc, "Thread finished");
-        pthread_join(proc.processes[i], NULL);
+        retval = SB_success;
+        writelog(&proc, "Waiting for threads");
+        for (i = 0; i < proc.current_processes; i++)
+        {
+          writelog(&proc, "Thread finished");
+          pthread_join(proc.processes[i], NULL);
+        }
+        writelog(&proc, "Done");
       }
-      writelog(&proc, "Done");
+      clean(&proc);
+      raise(SIGINT);
     }
-    clean(&proc);
-    raise(SIGINT);
+    gc_destroy();
   }
   return retval;
 }

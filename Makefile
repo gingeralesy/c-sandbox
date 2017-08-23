@@ -15,14 +15,14 @@ LDIR = lib
 ifeq ($(OS),Windows_NT)
   DEPS = $(WINDEPS)
   LIBDIRS = -L$(LDIR) -LC:/msys64/mingw64/lib
-  LIBS = -l:libpcre.a -lpthread -lm $(shell pkg-config --libs $(DEPS))
+  LIBS = -l:libpcre.a -lWs2_32 -lpthread -lm $(shell pkg-config --libs $(DEPS))
 else
   DEPS = $(LINDEPS)
   LIBDIRS = -L$(LDIR) -L/usr/lib -L/usr/lib64
   LIBS = -l:libpcre.a -lpthread -lm $(shell pkg-config --libs $(DEPS))
 endif
 
-CFLAGS = -g -Wall $(shell pkg-config --cflags $(DEPS))
+CFLAGS = -g -Wall -std=c11 $(shell pkg-config --cflags $(DEPS))
 
 SRC = $(wildcard $(SDIR)/*.c)
 

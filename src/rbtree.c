@@ -27,6 +27,7 @@ static rbt_node * left(rbt_node *);
 static rbt_node * right(rbt_node *);
 static rbt_node * parent(rbt_node *);
 
+static SB_bool    has_children(rbt_node *);
 static SB_bool    is_red(rbt_node *);
 static uint64_t   size(rbt_node *);
 static void       flip_colours(rbt_node *);
@@ -70,6 +71,11 @@ rbt_node * find(rbt_node *root, int64_t key)
       n = right(n);
   }
   return n;
+}
+
+SB_bool has_children(rbt_node *node)
+{
+  return (left(node) != NULL || right(node) != NULL);
 }
 
 SB_bool is_red(rbt_node *node)
@@ -584,20 +590,16 @@ void rbt_free(rbt_node *root, void (*data_free)(void *))
   rbt_node *_tmp = NULL;
   while (_parent)
   {
-    _left = left(_parent);
-    _right = right(_parent);
-    if (_left || _right)
+    if (has_children(_parent))
     {
-      while (left(_left) || right(_left) || left(_right) || right(_right))
+      _left = left(_parent);
+      _right = right(_parent);
+      while (has_children(_left) || has_children(_right))
       {
-	if (left(_left))
-	  _parent = left(_left);
-	else if (right(_left))
-	  _parent = right(_left);
-	else if (left(_right))
-	  _parent = left(_right);
-	else if (right(_right))
-	  _parent = right(_right);
+	if (has_children(_left))
+	  _parent = _left;
+	else if (has_children(_right))
+	  _parent = _right;
 	
         _left = left(_parent);
         _right = right(_parent);

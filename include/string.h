@@ -6,13 +6,13 @@
 
 typedef struct string_t
 {
-  Object obj;
+  OTrue obj;
   uint32_t len;
   const char *str;
-} String;
+} OString;
 
-String *     string_create(const char *str, uint32_t length);
-uint64_t     string_hash  (String *string);
-const char * string_raw   (String *string);
+OString *    string_create(const char *str, uint32_t length);
+uint64_t     string_hash  (OString *string);
+const char * string_raw   (OString *string);
 
 #endif // STRING_H

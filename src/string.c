@@ -1,5 +1,7 @@
 #include "string.h"
 
+static const char *STRING_CLASS_NAME = "string";
+
 
 static uint64_t djb2(const uint8_t *str);
 
@@ -16,9 +18,9 @@ uint64_t djb2(const uint8_t *str)
 }
 
 
-String * string_create(const char *str, uint32_t length)
+OString * string_create(const char *str, uint32_t length)
 {
-  String *self = (String *)calloc(1, sizeof(String));
+  OString *self = (OString *)calloc(1, sizeof(OString));
   object_fill((Object *)self, djb2((const uint8_t *)str));
   self->len = (0 < length ? length : strlen(str));
   self->str = str;
@@ -26,14 +28,14 @@ String * string_create(const char *str, uint32_t length)
   return self;
 }
 
-uint64_t string_hash(String *string)
+uint64_t string_hash(OString *string)
 {
   if (string == NULL)
     return 0UL;
   return ((Object *)string)->hash;
 }
 
-const char * string_raw(String *string)
+const char * string_raw(OString *string)
 {
   if (string == NULL)
     return NULL;

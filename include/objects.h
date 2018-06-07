@@ -18,12 +18,11 @@ typedef enum object_type_e
   TYPE_OBJECT
 } OType;
 
-// Hold up, something is way off here. I think classes and objects are getting mixed up.
-
 typedef struct object_class_t
 {
   Class *superclasses;
   const char *class_name;
+  uint64_t hash;
   OVar *fields;
 } Class;
 
@@ -55,5 +54,12 @@ typedef struct object_variable_t
     OTrue *obj;
   } data;
 } OVar;
+
+typedef struct string_t
+{
+  OTrue obj;
+  uint32_t len;
+  const char *str;
+} OString;
 
 #endif // __OBJ_H__

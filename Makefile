@@ -12,36 +12,47 @@ SDIR = src
 ODIR = obj
 LDIR = lib
 
+LIBDIRS = -L$(LDIR)
+LIBS = -l:libpcre.a -lpthread -lm
+
 ifeq ($(OS),Windows_NT)
   DEPS = $(WINDEPS)
-  LIBDIRS = -L$(LDIR) -LC:/msys64/mingw64/lib
-  LIBS = -l:libpcre.a -lWs2_32 -lpthread -lm $(shell pkg-config --libs $(DEPS))
+  LIBDIRS := $(LIBDIRS) -LC:/msys64/mingw64/lib
+  LIBS := $(LIBS) -lWs2_32
 else
   DEPS = $(LINDEPS)
-  LIBDIRS = -L$(LDIR) -L/usr/lib -L/usr/lib64
-  LIBS = -l:libpcre.a -lpthread -lm $(shell pkg-config --libs $(DEPS))
+  LIBDIRS := $(LIBDIRS) -L/usr/lib -L/usr/lib64
 endif
 
-CFLAGS = -g -Wall -std=c11 $(shell pkg-config --cflags $(DEPS))
+CFLAGS = -g -Wall -std=c11 $(shell pkg-config --cflags $(DEPS)) -iquote $(IDIR)
+LDFLAGS := $(LIBDIRS) $(LIBS) $(shell pkg-config --libs $(DEPS))
+
+SPATTERN = $(SDIR)/%.c
+OPATTERN = $(ODIR)/%.o
 
 SRC = $(wildcard $(SDIR)/*.c)
-
-OBJ := $(SRC:$(SDIR)/%.c=$(ODIR)/%.o)
-
+OBJ = $(patsubst $(SPATTERN),$(OPATTERN),$(SRC))
 BIN = $(BDIR)/$(TARGET)
 
 RM = rm -f
 
-$(ODIR)/%.o: $(SDIR)/%.c
-	$(CC) -c -o $@ $< -I$(IDIR) $(CFLAGS)
+$(BIN): $(OBJ)
+	@$(CC) -o $@ $^ $(LDFLAGS)
+	@echo " *** Linked "$(BIN)
 
-build: $(OBJ)
-	$(CC) -o $(BIN) $^ -I$(IDIR) $(CFLAGS) $(LIBDIRS) $(LIBS)
+$(OBJ): $(OPATTERN) : $(SPATTERN)
+	@$(CC) $(CFLAGS) -c $^ -o $@
+	@echo " *** Compiled "$@
 
 .PHONY: clean
-
 clean:
-	$(RM) $(ODIR)/*.o *~ */*~ $(BIN)
+	@$(RM) $(OBJ) $(BIN) *~ */*~
+	@echo " *** Cleanup complete"
 
+.PHONY: run
 run:
 	./$(BIN)
+
+.PHONY: all
+all: clean $(BIN)
+	@echo " *** All done"

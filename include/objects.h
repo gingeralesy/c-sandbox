@@ -55,7 +55,7 @@ typedef struct object_variable_t
   } data;
 } OVar;
 
-typedef struct string_t
+typedef struct object_string_t
 {
   OTrue obj;
   uint32_t len;

@@ -1,5 +1,5 @@
-#ifndef HASHMAP_H
-#define HASHMAP_H
+#ifndef __HASHMAP_H__
+#define __HASHMAP_H__
 
 #include "common.h"
 
@@ -15,4 +15,4 @@ Pointer   hashmap_get    (HashMap *map, Pointer key);
 Pointer   hashmap_put    (HashMap *map, Pointer key, Pointer value);
 uint32_t  hashmap_size   (HashMap *map);
 
-#endif // HASHMAP_H
+#endif // __HASHMAP_H__

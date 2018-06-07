@@ -1,8 +1,4 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <math.h>
-
+#include "common.h"
 #include "ncurs.h"
 
 int main(int argc, char *argv[])

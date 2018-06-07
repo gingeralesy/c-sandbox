@@ -2,7 +2,6 @@
 #define OBJECT_H
 
 #include "common.h"
-#include "types.h"
 
 typedef struct object_t
 {

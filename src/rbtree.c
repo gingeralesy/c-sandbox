@@ -1,9 +1,5 @@
 #include "rbtree.h"
 
-#include <stdint.h>
-
-#include "common.h"
-
 typedef enum colour_e
 {
   RED = 0,

@@ -1,7 +1,7 @@
 #ifndef __OBJ_H__
 #define __OBJ_H__
 
-#include <stdint.h>
+#include "common.h"
 
 typedef enum object_type_e OType;
 typedef struct object_class_t Class;

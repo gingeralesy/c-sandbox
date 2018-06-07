@@ -1,8 +1,7 @@
 #ifndef __TICKET_H__
 #define __TICKET_H__
 
-#include <stdint.h>
-#include <pthread.h>
+#include "common.h"
 
 #define TICKET_MUTEX_INITIALIZER                                \
   { PTHREAD_COND_INITIALIZER, PTHREAD_MUTEX_INITIALIZER, PTHREAD_MUTEX_INITIALIZER, 0, 0 }

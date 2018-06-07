@@ -1,7 +1,5 @@
 #include "ticket.h"
 
-#include <stdio.h>
-
 uint64_t ticket_lock(ticket_mutex *ticket)
 {
   uint64_t queue_cur;

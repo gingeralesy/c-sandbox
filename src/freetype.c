@@ -1,7 +1,5 @@
 #include "ft.h"
 
-#include <stdio.h>
-
 #ifdef __WIN32
 
 int ft_main(int argc, char *argv[])

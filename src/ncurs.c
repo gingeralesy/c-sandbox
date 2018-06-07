@@ -1,21 +1,9 @@
 #include "ncurs.h"
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <math.h>
-#include <unistd.h>
-#include <ncurses.h>
-#include <signal.h>
-#include <time.h>
-#include <errno.h>
-#ifdef _WIN32
-#include <windows.h>
-#endif // _WIN32
-
-#include "common.h"
 #include "ticket.h"
 #include "memory.h"
+
+#include <ncurses.h>
 
 #define MAX_MAIN_PROCESSES (8)
 #define MAX_PROCESSES (64)

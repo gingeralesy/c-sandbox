@@ -1,11 +1,7 @@
 #ifndef __MEM_H__
 #define __MEM_H__
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <inttypes.h>
-#include <string.h>
-#include <math.h>
+#include "common.h"
 
 typedef enum gc_bool_e
 {

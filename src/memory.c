@@ -1,7 +1,6 @@
 #include "memory.h"
 
 #include "ticket.h"
-#include "common.h"
 
 #define BLOCK_HEADER "BLOCK"
 #define BLOCK_HEADER_LENGTH (5)

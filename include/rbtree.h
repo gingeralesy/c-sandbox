@@ -1,11 +1,7 @@
 #ifndef __RBT_H__
 #define __RBT_H__
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <math.h>
-#include <stdint.h>
+#include "common.h"
 
 #define RBTREE_NULL_KEY (INT64_MIN)
 

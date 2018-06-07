@@ -2,7 +2,6 @@
 #define HASHMAP_H
 
 #include "common.h"
-#include "types.h"
 
 typedef struct hash_map_t HashMap;
 

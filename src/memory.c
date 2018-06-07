@@ -13,24 +13,39 @@ typedef struct gc_memory_block_t gc_block;
 typedef struct gc_memory_block_t
 {
   char head[BLOCK_HEADER_LENGTH];
+  uint64_t id;
   gc_bool marked;
   size_t size;
   uint32_t ref_count;
   gc_block *references;
-  int8_t data;
+  uint8_t data;
 } gc_block;
 
-static int8_t *gc_memory = NULL;
+static uint8_t *gc_memory = NULL;
 
 static uint32_t gc_current_size = 0;
 static uint32_t gc_max_size = 0;
 
-static ticket_mutex lock = TICKET_MUTEX_INITIALIZER;
+static ticket_mutex s_lock = TICKET_MUTEX_INITIALIZER;
 
 
+static uint64_t   genid(void);
 static gc_block * alloc_space(size_t);
-static gc_block * get_block(void *);
+static gc_block * get_block(uint64_t);
 
+
+uint64_t genid()
+{
+  static ticket_mutex mutex = TICKET_MUTEX_INITIALIZER;
+  static uint64_t counter = 1UL;
+  uint64_t retid = 0UL;
+
+  ticket_lock(&mutex);
+  retid = counter;
+  counter += 1;
+  ticket_unlock(&mutex);
+  return retid;
+}
 
 gc_block * alloc_space(size_t size)
 {
@@ -63,13 +78,13 @@ gc_block * alloc_space(size_t size)
   if (!block && gc_current_size < gc_max_size &&
       needed <= gc_max_size - gc_current_size)
   {
-    int8_t *tmp_memory = NULL;
+    uint8_t *tmp_memory = NULL;
     uint32_t new_size = 0;
     new_size =
       min((gc_current_size * max(needed / gc_current_size, 2)),
           gc_max_size);
     tmp_memory = gc_memory;
-    gc_memory = (int8_t *)calloc(new_size,sizeof(int8_t));
+    gc_memory = (uint8_t *)calloc(new_size,sizeof(uint8_t));
     memcpy(gc_memory, tmp_memory, gc_current_size);
     free(tmp_memory);
     block = (gc_block *)(&(gc_memory[gc_current_size]));
@@ -79,24 +94,18 @@ gc_block * alloc_space(size_t size)
   if (block)
   {
     memcpy(block->head, BLOCK_HEADER, BLOCK_HEADER_LENGTH);
+    block->id = genid();
     block->size = size;
-    memset((void *)(&(block->data)), 0, size);
+    memset(&(block->data), 0, size);
   }
 
   return block;
 }
 
-gc_block * get_block(void *pointer)
+gc_block * get_block(uint64_t id)
 {
-  gc_block *block = NULL;
-  int64_t pint = 0;
-  void *spot = NULL;
-  
-  pint = (int64_t)pointer - (int64_t)gc_memory - (int64_t)sizeof(gc_block);
-  spot = (&(gc_memory[pint]));
-  if (0 <= pint && memcmp(spot, BLOCK_HEADER, BLOCK_HEADER_LENGTH) == 0)
-    block = (gc_block *)spot;
-  return block;
+  // TODO: Get the correct block based on the ID from a RBTree
+  return NULL;
 }
 
 
@@ -105,14 +114,25 @@ gc_bool gc_init(uint32_t initial_size, uint32_t max_size)
   return gc_init_err(initial_size, max_size, NULL);
 }
 
-void * gc_alloc(size_t size)
+uint64_t gc_alloc(size_t size)
 {
   return gc_alloc_err(size, NULL);
 }
 
-gc_bool gc_free(void *pointer)
+Pointer gc_data(uin64_t id)
 {
-  return gc_free_err(pointer, NULL);
+  gc_block block = NULL;
+  if (id == 0UL)
+    return NULL;
+  block = get_block(id);
+  if (block == NULL)
+    return NULL;
+  return (Pointer)(&(block->data));
+}
+
+gc_bool gc_free(uint64_t block_id)
+{
+  return gc_free_err(block_id, NULL);
 }
 
 gc_bool gc_destroy()
@@ -132,10 +152,10 @@ gc_bool gc_init_err(uint32_t initial_size, uint32_t max_size, gc_error *error)
     if (_max_size == 0)
       _max_size = DEFAULT_MAX_SIZE;
 
-    ticket_lock(&lock);
+    ticket_lock(&s_lock);
     if (!gc_memory)
     {
-      gc_memory = (int8_t *)calloc(_initial_size,sizeof(int8_t));
+      gc_memory = (uint8_t *)calloc(_initial_size,sizeof(uint8_t));
       if (gc_memory)
       {
         gc_current_size = _initial_size;
@@ -150,48 +170,47 @@ gc_bool gc_init_err(uint32_t initial_size, uint32_t max_size, gc_error *error)
         (*error) = GC_OUT_OF_MEMORY_ERROR;
       }
     }
-    ticket_unlock(&lock);
+    ticket_unlock(&s_lock);
   }
   return retval;
 }
 
-void * gc_alloc_err(size_t size, gc_error *error)
+uint64_t gc_alloc_err(size_t size, gc_error *error)
 {
-  void * retptr = NULL;
-  size_t _size = size / sizeof(int8_t);
+  uint64_t id = 0UL;
   if (gc_init_err(DEFAULT_INITIAL_SIZE, DEFAULT_MAX_SIZE, error))
   {
     gc_block *block = NULL;
     
-    ticket_lock(&lock);
-    block = alloc_space(_size);
+    ticket_lock(&s_lock);
+    block = alloc_space(size);
     if (block)
-      retptr = (void *)(&(block->data));
-    ticket_unlock(&lock);
+      id = block->id;
+    ticket_unlock(&s_lock);
 
     if (error)
-      (*error) = (retptr ? GC_NO_ERROR : GC_OUT_OF_MEMORY_ERROR);
+      (*error) = (0UL < id ? GC_NO_ERROR : GC_OUT_OF_MEMORY_ERROR);
   }
   else if (error)
   {
     (*error) = GC_UNINITIALIZED_ERROR;
   }
-  return retptr;
+  return id;
 }
 
-gc_bool gc_free_err(void *pointer, gc_error *error)
+gc_bool gc_free_err(Pointer pointer, gc_error *error)
 {
   gc_bool retval = GC_FALSE;
   if (gc_memory)
   {
     gc_block *block = NULL;
-    ticket_lock(&lock);
+    ticket_lock(&s_lock);
     block = get_block(pointer);
     if (block)
     {
       block->marked = GC_TRUE;
       retval = GC_TRUE;
-      memset((void *)(&(block->data)), 0, block->size);
+      memset(&(block->data), 0, block->size);
       if (error)
         (*error) = GC_NO_ERROR;
     }
@@ -199,7 +218,7 @@ gc_bool gc_free_err(void *pointer, gc_error *error)
     {
       (*error) = GC_INVALID_INPUT_ERROR;
     }
-    ticket_unlock(&lock);
+    ticket_unlock(&s_lock);
   }
   else if (error)
   {
@@ -210,10 +229,10 @@ gc_bool gc_free_err(void *pointer, gc_error *error)
 
 gc_bool gc_destroy_err(gc_error *error)
 {
-  ticket_lock(&lock);
+  ticket_lock(&s_lock);
   if (gc_memory)
   {
-    int8_t *tmp_mem = gc_memory;
+    uint8_t *tmp_mem = gc_memory;
     gc_memory = NULL;
     memset(tmp_mem, 0, gc_current_size);
     free(tmp_mem);
@@ -221,7 +240,7 @@ gc_bool gc_destroy_err(gc_error *error)
 
   gc_current_size = 0;
   gc_max_size = 0;
-  ticket_unlock(&lock);
+  ticket_unlock(&s_lock);
 
   return GC_TRUE;
 }
@@ -239,6 +258,6 @@ const char * gc_error_string(gc_error error)
   case GC_UNINITIALIZED_ERROR:
     return "Uninitialised error.";
   default:
-    return "No such error.";
+    return "Unknown error.";
   }
 }

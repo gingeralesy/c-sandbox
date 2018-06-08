@@ -1,6 +1,7 @@
 #include "memory.h"
 
 #include "ticket.h"
+#include "rbtree.h"
 
 #define BLOCK_HEADER "BLOCK"
 #define BLOCK_HEADER_LENGTH (5)
@@ -14,7 +15,7 @@ typedef struct gc_memory_block_t
 {
   char head[BLOCK_HEADER_LENGTH];
   uint64_t id;
-  gc_bool marked;
+  bool marked;
   size_t size;
   uint32_t ref_count;
   gc_block *references;
@@ -23,8 +24,9 @@ typedef struct gc_memory_block_t
 
 static uint8_t *gc_memory = NULL;
 
-static uint32_t gc_current_size = 0;
-static uint32_t gc_max_size = 0;
+static uint32_t  gc_current_size = 0;
+static uint32_t  gc_max_size = 0;
+static rbt_node *gc_blocks = NULL;
 
 static ticket_mutex s_lock = TICKET_MUTEX_INITIALIZER;
 
@@ -49,12 +51,12 @@ uint64_t genid()
 
 gc_block * alloc_space(size_t size)
 {
-  gc_block *block = NULL;
-  gc_block *tmp = NULL;
   uint32_t i = 0;
   uint32_t start = 0;
   size_t block_size = sizeof(gc_block);
   size_t needed = size + block_size;
+  gc_block *block = NULL;
+  gc_block *tmp = NULL;
 
   for (i = 0; i < gc_current_size; i++)
   {
@@ -97,6 +99,9 @@ gc_block * alloc_space(size_t size)
     block->id = genid();
     block->size = size;
     memset(&(block->data), 0, size);
+    gc_blocks =
+      rbt_put(gc_blocks, (int64_t)block->id, block,
+              sizeof(gc_block) + block->size, NULL);
   }
 
   return block;
@@ -104,12 +109,11 @@ gc_block * alloc_space(size_t size)
 
 gc_block * get_block(uint64_t id)
 {
-  // TODO: Get the correct block based on the ID from a RBTree
-  return NULL;
+  return (gc_block *)rbt_get(gc_blocks, (int64_t)id);
 }
 
 
-gc_bool gc_init(uint32_t initial_size, uint32_t max_size)
+bool gc_init(uint32_t initial_size, uint32_t max_size)
 {
   return gc_init_err(initial_size, max_size, NULL);
 }
@@ -119,9 +123,9 @@ uint64_t gc_alloc(size_t size)
   return gc_alloc_err(size, NULL);
 }
 
-Pointer gc_data(uin64_t id)
+Pointer gc_data(uint64_t id)
 {
-  gc_block block = NULL;
+  gc_block *block = NULL;
   if (id == 0UL)
     return NULL;
   block = get_block(id);
@@ -130,19 +134,19 @@ Pointer gc_data(uin64_t id)
   return (Pointer)(&(block->data));
 }
 
-gc_bool gc_free(uint64_t block_id)
+bool gc_free(uint64_t block_id)
 {
   return gc_free_err(block_id, NULL);
 }
 
-gc_bool gc_destroy()
+bool gc_destroy()
 {
   return gc_destroy_err(NULL);
 }
 
-gc_bool gc_init_err(uint32_t initial_size, uint32_t max_size, gc_error *error)
+bool gc_init_err(uint32_t initial_size, uint32_t max_size, gc_error *error)
 {
-  gc_bool retval = (gc_memory ? GC_TRUE : GC_FALSE);
+  bool retval = (gc_memory ? true : false);
   if (!gc_memory)
   {
     uint32_t _initial_size = initial_size;
@@ -163,7 +167,7 @@ gc_bool gc_init_err(uint32_t initial_size, uint32_t max_size, gc_error *error)
         
         if (error)
           (*error) = GC_NO_ERROR;
-        retval = GC_TRUE;
+        retval = true;
       }
       else if (error)
       {
@@ -198,18 +202,18 @@ uint64_t gc_alloc_err(size_t size, gc_error *error)
   return id;
 }
 
-gc_bool gc_free_err(Pointer pointer, gc_error *error)
+bool gc_free_err(uint64_t id, gc_error *error)
 {
-  gc_bool retval = GC_FALSE;
+  bool retval = false;
   if (gc_memory)
   {
     gc_block *block = NULL;
     ticket_lock(&s_lock);
-    block = get_block(pointer);
+    block = get_block(id);
     if (block)
     {
-      block->marked = GC_TRUE;
-      retval = GC_TRUE;
+      block->marked = true;
+      retval = true;
       memset(&(block->data), 0, block->size);
       if (error)
         (*error) = GC_NO_ERROR;
@@ -227,7 +231,7 @@ gc_bool gc_free_err(Pointer pointer, gc_error *error)
   return retval;
 }
 
-gc_bool gc_destroy_err(gc_error *error)
+bool gc_destroy_err(gc_error *error)
 {
   ticket_lock(&s_lock);
   if (gc_memory)
@@ -242,7 +246,7 @@ gc_bool gc_destroy_err(gc_error *error)
   gc_max_size = 0;
   ticket_unlock(&s_lock);
 
-  return GC_TRUE;
+  return true;
 }
 
 const char * gc_error_string(gc_error error)

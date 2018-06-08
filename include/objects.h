@@ -5,8 +5,10 @@
 
 typedef enum object_type_e OType;
 typedef struct object_class_t Class;
+typedef struct object_number_class_t ONumber;
 typedef struct object_base_class_t OTrue;
 typedef struct object_variable_t OVar;
+typedef struct object_string_t OString;
 
 typedef enum object_type_e
 {

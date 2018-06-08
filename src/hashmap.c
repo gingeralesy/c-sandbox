@@ -30,16 +30,16 @@ static const uint32_t HASHMAP_DEFAULT_INITIAL_CAPACITY = 16;
 static const uint32_t HASHMAP_DEFAULT_LOAD_FACTOR = 0.75f;
 
 
-static void     add_node    (HashMap *map, uint64_t hash,
-                             Pointer key, Pointer value,
-                             uint32_t index);
-static Node *   create_node (uint64_t hash, Pointer key, Pointer value,
-                             Node *next);
-static Pointer  get_for_null(HashMap *map);
-static uint64_t truncate    (uint64_t key);
-static uint32_t index_for   (uint64_t hash, uint32_t size);
-static Pointer  put_for_null(HashMap *map, Pointer value);
-static void     resize      (HashMap *map, uint32_t new_size);
+static void     add_node     (HashMap *map, uint64_t hash,
+                              Pointer key, Pointer value,
+                              uint32_t index);
+static Node *   create_node  (uint64_t hash, Pointer key, Pointer value,
+                              Node *next);
+static Pointer  get_for_null (HashMap *map);
+static uint64_t truncate_hash(uint64_t key);
+static uint32_t index_for    (uint64_t hash, uint32_t size);
+static Pointer  put_for_null (HashMap *map, Pointer value);
+static void     resize       (HashMap *map, uint32_t new_size);
 
 
 void add_node(HashMap *map, uint64_t hash,
@@ -87,7 +87,7 @@ Pointer get_for_null(HashMap *map)
   return NULL;
 }
 
-uint64_t truncate(uint64_t key)
+uint64_t truncate_hash(uint64_t key)
 {
   uint64_t hash = key;
   hash ^= (hash >> 20) ^ (hash >> 12);
@@ -217,7 +217,7 @@ Pointer hashmap_get(HashMap *map, Pointer key)
   if (key == NULL)
     return get_for_null(map);
 
-  hash = truncate(map->hash_f(key));
+  hash = truncate_hash(map->hash_f(key));
   for (tmp = &(map->nodes[index_for(hash, map->capacity)]);
        tmp != NULL;
        tmp = tmp->next)
@@ -242,7 +242,7 @@ Pointer hashmap_put(HashMap *map, Pointer key, Pointer value)
   node = (Node *)calloc(1, sizeof(Node));
   node->key = key;
   node->value = value;
-  hash = truncate(map->hash_f(key));
+  hash = truncate_hash(map->hash_f(key));
 
   index = index_for(hash, map->capacity);
   for (tmp = &(map->nodes[index]); tmp != NULL; tmp = tmp->next)

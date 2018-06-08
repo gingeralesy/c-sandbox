@@ -33,9 +33,9 @@ static void (*ncurs_default_sigint_handler)(int);
 static void (*ncurs_default_sigwinch_handler)(int);
 #endif // __linux
 
-static void * queue_input(void *);
-static void * update(void *);
-static void * raise_signal(void *);
+static Pointer queue_input(Pointer);
+static Pointer update(Pointer);
+static Pointer raise_signal(Pointer);
 
 static unsigned int to_curse_string(chtype *, char *, unsigned int);
 static void default_handler(int);
@@ -45,16 +45,16 @@ static void resize(int);
 static void quit(int);
 
 static void handle_input(NCursProc *, chtype);
-static bool start_process(NCursProc *, void * (*)(void *), void *);
+static bool start_process(NCursProc *, Pointer (*)(Pointer), Pointer);
 static void init(NCursProc *);
 static void clean(NCursProc *);
-static bool add_main_process(NCursProc *);
+static unsigned int add_main_process(NCursProc *);
 static void writelog(NCursProc *,const char *);
 
 // --- Private ---
 // -- Processes --
 
-void * queue_input(void *params)
+Pointer queue_input(Pointer params)
 {
   NCursProc *proc = (NCursProc *)params;
 #ifdef _WIN32
@@ -93,7 +93,7 @@ void * queue_input(void *params)
   return NULL;
 }
 
-void * update(void *params)
+Pointer update(Pointer params)
 {
   NCursProc *proc = (NCursProc *)params;
   unsigned int i;
@@ -141,17 +141,20 @@ void * update(void *params)
   return NULL;
 }
 
-void * raise_signal(void *params)
+Pointer raise_signal(Pointer params)
 {
   if (params)
   {
     const char *msg_format = "Raising signal %s.";
     char buffer[32] = {0};
+    uint64_t id = 0UL;
     NCursProc *proc = NULL;
     int sig = 0;
     size_t i = 0;
-    memcpy(&proc, params, sizeof(NCursProc *));
-    memcpy(&sig, params + sizeof(NCursProc *), sizeof(int));
+
+    memcpy(&id, params, sizeof(uint64_t));
+    memcpy(&proc, params + sizeof(uint64_t), sizeof(NCursProc *));
+    memcpy(&sig, params + sizeof(uint64_t) + sizeof(NCursProc *), sizeof(int));
 
     switch(sig)
     {
@@ -166,7 +169,7 @@ void * raise_signal(void *params)
     writelog(proc, buffer);
     
     raise(sig);
-    gc_free(params);
+    gc_free(id);
   }
   return NULL;
 }
@@ -261,22 +264,30 @@ void handle_input(NCursProc *proc, chtype input)
 {
   if (proc->running)
   {
-    char chbuffer[32] = {0};
-    chtype buffer[32] = {0};
+    char chbuffer[128] = {0};
+    chtype buffer[128] = {0};
     int i = 0;
-    void *sigparam = NULL;
-    int sigint = SIGINT;
+    uint64_t sigparam = 0UL;
     gc_error error = GC_NO_ERROR;
     switch (input)
     {
     case 'q':
     case EOF:
-      sigparam = gc_alloc_err(sizeof(NCursProc *) + sizeof(int), &error);
-      if (sigparam)
+      i = sprintf(chbuffer, "Exitting...");
+
+      sigparam =
+        gc_alloc_err(sizeof(uint64_t) + sizeof(NCursProc *) + sizeof(int),
+                     &error);
+      if (sigparam != 0UL && error == GC_NO_ERROR)
       {
-        memcpy(sigparam, &proc, sizeof(int));
-        memcpy(sigparam + sizeof(NCursProc *), &sigint, sizeof(int));
-        if (!start_process(proc, &raise_signal, sigparam))
+        int sigint = SIGINT;
+        Pointer p_sigparam = gc_data(sigparam);
+        memcpy(p_sigparam, &sigparam, sizeof(uint64_t));
+        memcpy(p_sigparam + sizeof(uint64_t), &proc, sizeof(NCursProc *));
+        memcpy(p_sigparam + sizeof(uint64_t) + sizeof(NCursProc *),
+               &sigint,
+               sizeof(int));
+        if (!start_process(proc, &raise_signal, p_sigparam))
         {
           writelog(proc,
                    " !!! Failed to raise interrupt signal through a thread !!!");
@@ -295,16 +306,16 @@ void handle_input(NCursProc *proc, chtype input)
       break;
     default:
       i = sprintf(chbuffer, "key %s : %d", keyname(input), input);
-      chbuffer[i] = '\0';
-      erase();
-      if (0 < to_curse_string(buffer, chbuffer, 32))
-        mvaddchstr(0, 0, buffer);
       break;
     }
+    chbuffer[i] = '\0';
+    erase();
+    if (0 < to_curse_string(buffer, chbuffer, 32))
+      mvaddchstr(0, 0, buffer);
   }
 }
 
-bool start_process(NCursProc *proc, void * (*routine)(void *), void *arg)
+bool start_process(NCursProc *proc, Pointer (*routine)(Pointer), Pointer arg)
 {
   pthread_t thread = {0};
   if (proc->running && proc->current_processes < MAX_PROCESSES &&
@@ -374,7 +385,7 @@ unsigned int add_main_process(NCursProc *proc)
     ncurs_main_processes[ncurs_main_process_count++] = proc;
     return ncurs_main_process_count;
   }
-  return 0;
+  return 0U;
 }
 
 void writelog(NCursProc *proc, const char *message)

@@ -1,8 +1,8 @@
 ## Sandbox makefile
 
 TARGET = sandbox
-LINDEPS = freetype2 ncurses
-WINDEPS = ncurses
+LINDEPS = freetype2 ncursesw
+WINDEPS = ncursesw
 CC = gcc
 CXX = g++
 
@@ -55,6 +55,7 @@ tags: TAGS
 .PHONY: clean
 clean:
 	@$(RM) $(OBJ) $(BIN) *~ */*~
+	@mkdir -p $(ODIR) $(BDIR)
 	@echo " *** Cleanup complete"
 
 .PHONY: run

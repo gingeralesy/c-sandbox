@@ -12,18 +12,6 @@ int ft_main(int argc, char *argv[])
 #include <ft2build.h>
 #include FT_FREETYPE_H
 
-#ifndef EXIT_SUCCESS
-#define EXIT_SUCCESS (0)
-#endif // EXIT_SUCCESS
-
-#ifndef EXIT_FAILURE
-#define EXIT_FAILURE (1)
-#endif // EXIT_FAILURE
-
-#ifndef NULL
-#define NULL ((void *)(0))
-#endif // NULL
-
 int ft_main(int argc, char *argv[])
 {
   FT_Library library = {0};

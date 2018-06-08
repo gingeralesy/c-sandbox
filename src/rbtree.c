@@ -23,8 +23,8 @@ static rbt_node * left(rbt_node *);
 static rbt_node * right(rbt_node *);
 static rbt_node * parent(rbt_node *);
 
-static SB_bool    has_children(rbt_node *);
-static SB_bool    is_red(rbt_node *);
+static bool    has_children(rbt_node *);
+static bool    is_red(rbt_node *);
 static uint64_t   size(rbt_node *);
 static void       flip_colours(rbt_node *);
 static rbt_node * rotate_left(rbt_node *);
@@ -69,12 +69,12 @@ rbt_node * find(rbt_node *root, int64_t key)
   return n;
 }
 
-SB_bool has_children(rbt_node *node)
+bool has_children(rbt_node *node)
 {
   return (left(node) != NULL || right(node) != NULL);
 }
 
-SB_bool is_red(rbt_node *node)
+bool is_red(rbt_node *node)
 {
   return (node && node->colour == RED);
 }

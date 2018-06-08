@@ -20,6 +20,29 @@
 #include <windows.h>
 #endif // _WIN32
 
+#ifndef bool
+#ifdef BOOL
+typedef BOOL bool;
+#else
+typedef int bool;
+#endif // BOOL
+#endif // bool
+
+#ifndef true
+#ifdef TRUE
+typedef TRUE true;
+#else
+#define true (!(0))
+#endif // TRUE
+#endif // true
+
+#ifndef false
+#ifdef FALSE
+typedef FALSE false;
+#else
+#define false (!(true))
+#endif // FALSE
+#endif // true
 
 #ifndef min
 #define min(x,y) (x < y ? x : y)
@@ -32,16 +55,18 @@
 #define NULL ((void *)0)
 #endif // NULL
 
-typedef enum SB_bool_e {
-  SB_false = 0,
-  SB_true = 1
-} SB_bool;
+#ifndef EXIT_SUCCESS
+#define EXIT_SUCCESS (0)
+#endif // EXIT_SUCCESS
 
-typedef enum exit_value_e {
-  SB_success = 0,
-  SB_failure = 1
-} exit_value;
+#ifndef EXIT_FAILURE
+#define EXIT_FAILURE (1)
+#endif // EXIT_FAILURE
 
 typedef void * Pointer;
+
+#ifndef NULL
+#define NULL ((Pointer)(0))
+#endif // NULL
 
 #endif // __COMMON_H__

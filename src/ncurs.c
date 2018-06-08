@@ -14,7 +14,7 @@
 
 typedef struct sandbox_ncurs_process {
   WINDOW *main;
-  SB_bool running;
+  bool running;
   unsigned int pid;
   unsigned int current_processes;
   pthread_t processes[MAX_PROCESSES];
@@ -45,10 +45,10 @@ static void resize(int);
 static void quit(int);
 
 static void handle_input(NCursProc *, chtype);
-static SB_bool start_process(NCursProc *, void * (*)(void *), void *);
+static bool start_process(NCursProc *, void * (*)(void *), void *);
 static void init(NCursProc *);
 static void clean(NCursProc *);
-static SB_bool add_main_process(NCursProc *);
+static bool add_main_process(NCursProc *);
 static void writelog(NCursProc *,const char *);
 
 // --- Private ---
@@ -64,7 +64,7 @@ void * queue_input(void *params)
   while (proc->running)
   {
     if (proc->queue_count < MAX_CHAR &&
-        WaitForSingleObjectEx(inhand, 500, SB_true) == SB_success &&
+        WaitForSingleObjectEx(inhand, 500, SB_true) == EXIT_SUCCESS &&
         proc->running && ReadConsoleInput(inhand, &input, 1, &numread) &&
         proc->running && numread == 1 && input.EventType == KEY_EVENT &&
         ((KEY_EVENT_RECORD*)&input.Event)->bKeyDown)
@@ -304,11 +304,11 @@ void handle_input(NCursProc *proc, chtype input)
   }
 }
 
-SB_bool start_process(NCursProc *proc, void * (*routine)(void *), void *arg)
+bool start_process(NCursProc *proc, void * (*routine)(void *), void *arg)
 {
   pthread_t thread = {0};
   if (proc->running && proc->current_processes < MAX_PROCESSES &&
-      pthread_create(&thread, NULL, routine, arg) == SB_success)
+      pthread_create(&thread, NULL, routine, arg) == EXIT_SUCCESS)
   {
     proc->processes[proc->current_processes] = thread;
     proc->current_processes += 1;
@@ -413,7 +413,7 @@ int ncurs_main(int argc, char *argv[])
 {
   unsigned int i = 0;
   unsigned int pid = 0;
-  exit_value retval = SB_failure;
+  exit_value retval = EXIT_FAILURE;
   NCursProc proc = NCURS_PROC_INITIALIZER;
 
   if (gc_init(0, 0))
@@ -427,7 +427,7 @@ int ncurs_main(int argc, char *argv[])
       if (start_process(&proc, &queue_input, &proc) &&
           start_process(&proc, &update, &proc))
       {
-        retval = SB_success;
+        retval = EXIT_SUCCESS;
         writelog(&proc, "Waiting for threads");
         i = 0;
         while (i < proc.current_processes)

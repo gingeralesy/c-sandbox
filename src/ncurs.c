@@ -413,7 +413,7 @@ int ncurs_main(int argc, char *argv[])
 {
   unsigned int i = 0;
   unsigned int pid = 0;
-  exit_value retval = EXIT_FAILURE;
+  int retval = EXIT_FAILURE;
   NCursProc proc = NCURS_PROC_INITIALIZER;
 
   if (gc_init(0, 0))

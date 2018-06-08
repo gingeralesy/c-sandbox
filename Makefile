@@ -30,6 +30,7 @@ LDFLAGS := $(LIBDIRS) $(LIBS) $(shell pkg-config --libs $(DEPS))
 SPATTERN = $(SDIR)/%.c
 OPATTERN = $(ODIR)/%.o
 
+INC = $(wildcard $(IDIR)/*.h)
 SRC = $(wildcard $(SDIR)/*.c)
 OBJ = $(patsubst $(SPATTERN),$(OPATTERN),$(SRC))
 BIN = $(BDIR)/$(TARGET)
@@ -43,6 +44,13 @@ $(BIN): $(OBJ)
 $(OBJ): $(OPATTERN) : $(SPATTERN)
 	@$(CC) $(CFLAGS) -c $^ -o $@
 	@echo " *** Compiled "$@
+
+TAGS: $(SRC) $(INC)
+	@ctags -e $^
+	@echo " *** TAGS file created"
+
+.PHONY: tags
+tags: TAGS
 
 .PHONY: clean
 clean:

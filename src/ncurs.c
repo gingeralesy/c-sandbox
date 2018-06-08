@@ -64,7 +64,7 @@ void * queue_input(void *params)
   while (proc->running)
   {
     if (proc->queue_count < MAX_CHAR &&
-        WaitForSingleObjectEx(inhand, 500, SB_true) == EXIT_SUCCESS &&
+        WaitForSingleObjectEx(inhand, 500, true) == EXIT_SUCCESS &&
         proc->running && ReadConsoleInput(inhand, &input, 1, &numread) &&
         proc->running && numread == 1 && input.EventType == KEY_EVENT &&
         ((KEY_EVENT_RECORD*)&input.Event)->bKeyDown)
@@ -205,7 +205,7 @@ void quit(int sig)
     {
       ticket_lock(&proc->sb_lock);
       if (proc->running)
-        proc->running = SB_false;
+        proc->running = false;
       ticket_unlock(&proc->sb_lock);
     }
   }
@@ -312,9 +312,9 @@ bool start_process(NCursProc *proc, void * (*routine)(void *), void *arg)
   {
     proc->processes[proc->current_processes] = thread;
     proc->current_processes += 1;
-    return SB_true;
+    return true;
   }
-  return SB_false;
+  return false;
 }
 
 void init(NCursProc *proc)
@@ -349,7 +349,7 @@ void init(NCursProc *proc)
   }
 
   proc->main = initscr();
-  keypad(proc->main, SB_true);
+  keypad(proc->main, true);
   nonl();
   noecho();
   cbreak();
@@ -357,7 +357,7 @@ void init(NCursProc *proc)
   halfdelay(5);
 #endif // __linux
   curs_set(0);
-  proc->running = SB_true;
+  proc->running = true;
 }
 
 void clean(NCursProc *proc)

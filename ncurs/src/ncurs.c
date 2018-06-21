@@ -23,7 +23,7 @@ typedef struct ncurs_process_t {
   void (*handle_key_f)(chtype, Pointer);
   Pointer update_data;
   Pointer keyhandler_data;
-  ticket_mutex sb_lock;
+  ticket_mutex work_lock;
   ticket_mutex write_lock;
   FILE *debuglog;
 } NCursProc;
@@ -63,10 +63,10 @@ Pointer queue_input(Pointer params)
     if (proc->queue_count < MAX_CHAR &&
         (input = getch()) != ERR && proc->running)
     {
-      ticket_lock(&proc->sb_lock);
+      ticket_lock(&proc->work_lock);
       if (proc->running)
         proc->ch_queue[proc->queue_count++] = input;
-      ticket_unlock(&proc->sb_lock);
+      ticket_unlock(&proc->work_lock);
     }
   }
   return NULL;
@@ -77,20 +77,31 @@ Pointer update(Pointer params)
   NCursProc *proc = (NCursProc *)params;
   uint32_t i = 0U;
   uint64_t fps = 16666667UL; // 1/60 sec
+  chtype chars[MAX_CHAR] = {0};
   struct timespec prev = {0};
   struct timespec cur = {0};
   struct timespec delta = {0};
   struct timespec rem = {0};
   while (proc->running && rem.tv_sec == 0 && rem.tv_nsec == 0)
   {
-    ticket_lock(&proc->sb_lock);
+    uint32_t count = 0U;
+    ticket_lock(&proc->work_lock);
     if (proc->running)
     {
-      for (i = 0; i < proc->queue_count; i++)
-        handle_input(proc, proc->ch_queue[i]);
+      memcpy(chars, proc->ch_queue, proc->queue_count);
+      count = proc->queue_count;
     }
     proc->queue_count = 0;
-    ticket_unlock(&proc->sb_lock);
+    ticket_unlock(&proc->work_lock);
+
+    if (proc->running)
+    {
+      for (i = 0; i < count; i++)
+      {
+        if (proc->running)
+          handle_input(proc, chars[i]);
+      }
+    }
 
     timespec_get(&cur, TIME_UTC);
     delta.tv_sec = (cur.tv_sec - prev.tv_sec);
@@ -149,13 +160,13 @@ void resize(int32_t sig)
   {
     if (proc && proc->running)
     {
-      ticket_lock(&proc->sb_lock);
+      ticket_lock(&proc->work_lock);
       if (proc->running)
       {
         endwin();
         refresh();
       }
-      ticket_unlock(&proc->sb_lock);
+      ticket_unlock(&proc->work_lock);
     }
   }
   default_handler(sig);
@@ -167,15 +178,14 @@ void quit(int32_t sig)
   uint32_t i = 0U;
   for (i = 0U, proc = s_ncurs_main_processes; i < s_ncurs_main_process_count; i++, proc++)
   {
-    if (proc && proc->running)
+    if (proc != NULL && proc->running)
     {
-      ticket_lock(&proc->sb_lock);
+      ticket_lock(&proc->work_lock);
       if (proc->running)
         proc->running = false;
-      ticket_unlock(&proc->sb_lock);
+      ticket_unlock(&proc->work_lock);
     }
   }
-
   default_handler(sig);
 }
 
@@ -237,7 +247,6 @@ NCursProc * get_process(uint32_t id)
 {
   if (0U < id)
   {
-    char buffer[128] = {0};
     uint32_t i;
     NCursProc *proc = NULL, *tmp = NULL;
     for (i = 0U, tmp = s_ncurs_main_processes; i < s_ncurs_main_process_count; i++, tmp++)
@@ -298,7 +307,7 @@ void init(NCursProc *proc)
     sa_resize.sa_handler = resize;
     sigemptyset(&sa_resize.sa_mask);
     sigaction(SIGWINCH, &sa_resize, NULL);
-    writelog(proc, "Signal handling is set.\n");
+    writelog(proc, "Signal handling is set.");
   }
 
   proc->main = initscr();
@@ -309,7 +318,7 @@ void init(NCursProc *proc)
   halfdelay(5);
   curs_set(0);
   proc->running = true;
-  writelog(proc, "Finished initialising.\n");
+  writelog(proc, "Finished initialising.");
 }
 
 void clean(NCursProc *proc)
@@ -397,6 +406,7 @@ void ncurs_quit(uint32_t id)
     {
       writelog(proc,
                " !!! Failed to raise interrupt signal through a thread !!!");
+      clean(proc);
       raise(SIGINT);
     }
   }
@@ -417,6 +427,7 @@ void ncurs_quit(uint32_t id)
     }
 
     writelog(proc, " !!! No running processes, raising a global SIGINT !!!");
+    endwin();
     raise(SIGINT);
   }
 }
@@ -473,7 +484,5 @@ void ncurs_wait(uint32_t id)
   {
     proc = get_process(1U);
     writelog(proc, " !!! Could not get process !!!");
-    clean(proc);
-    raise(SIGINT);
   }
 }

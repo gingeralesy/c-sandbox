@@ -1,1 +1,0 @@
-../ncurs/include/ncurs.h

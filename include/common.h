@@ -51,10 +51,6 @@ typedef FALSE false;
 #define max(x,y) (x < y ? y : x)
 #endif // max
 
-#ifndef NULL
-#define NULL ((void *)0)
-#endif // NULL
-
 #ifndef EXIT_SUCCESS
 #define EXIT_SUCCESS (0)
 #endif // EXIT_SUCCESS

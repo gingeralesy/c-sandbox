@@ -1,14 +1,19 @@
 import sys
 
-cflags = '-iquoteinclude -Wall -D_SANDBOX_DEBUG'
+cflags = '-iquoteinclude -Wall'
 ldflags = '-l:libpcre.a -lpthread -lm -Llib'
 if sys.platform == "win32":
   ldflags += ' -LC:/msys64/mingw64/lib -lWs2_32'
 
+if int(ARGUMENTS.get('debug', 0)):
+  cflags += ' -D_SANDBOX_DEBUG'
+
+project = ARGUMENTS.get('project', 'ncurs')
+
 env = Environment(CCFLAGS = cflags, LINKFLAGS = ldflags)
 env.ParseConfig('pkg-config --cflags --libs ncursesw freetype2')
 
-main_obj = env.Object('obj/main.o', source = [ 'src/main.c' ])
+main_obj = env.Object('obj/main.o', source = [ project + '/src/main.c' ])
 
 memory_obj = env.Object('obj/memory.o', source = [ 'memory/src/memory.c' ])
 ncurs_obj = env.Object('obj/ncurs.o', source = [ 'ncurs/src/ncurs.c' ])

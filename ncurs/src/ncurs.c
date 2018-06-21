@@ -29,7 +29,7 @@ typedef struct ncurs_process_t {
 } NCursProc;
 
 static NCursProc s_ncurs_main_processes[MAX_MAIN_PROCESSES] = {0};
-static uint32_t s_ncurs_main_process_count = 0;
+static uint32_t s_ncurs_main_process_count = 0U;
 
 static void (*ncurs_default_sigint_handler)(int);
 static void (*ncurs_default_sigwinch_handler)(int);
@@ -143,10 +143,10 @@ Pointer raise_signal(Pointer params)
 
 void resize(int32_t sig)
 {
-  uint32_t i = 0;
-  for (i = 0; i < s_ncurs_main_process_count; i++)
+  NCursProc *proc = NULL;
+  uint32_t i = 0U;
+  for (i = 0U, proc = s_ncurs_main_processes; i < s_ncurs_main_process_count; i++, proc++)
   {
-    NCursProc *proc = &(s_ncurs_main_processes[i]);
     if (proc && proc->running)
     {
       ticket_lock(&proc->sb_lock);
@@ -163,10 +163,10 @@ void resize(int32_t sig)
 
 void quit(int32_t sig)
 {
-  uint32_t i = 0;
-  for (i = 0; i < s_ncurs_main_process_count; i++)
+  NCursProc *proc = NULL;
+  uint32_t i = 0U;
+  for (i = 0U, proc = s_ncurs_main_processes; i < s_ncurs_main_process_count; i++, proc++)
   {
-    NCursProc *proc = &(s_ncurs_main_processes[i]);
     if (proc && proc->running)
     {
       ticket_lock(&proc->sb_lock);
@@ -208,7 +208,6 @@ uint32_t genid()
   counter += 1;
   retval = counter;
   ticket_unlock(&ticket);
-
   return retval;
 }
 
@@ -216,10 +215,19 @@ NCursProc * new_process()
 {
   NCursProc proc = NCURS_PROC_INITIALIZER;
   NCursProc *pproc = NULL;
-  uint32_t id = genid();
+  uint32_t i = 0U, id = genid();
 
-  memcpy(&(s_ncurs_main_processes[id]), &proc, sizeof(NCursProc));
-  pproc = &(s_ncurs_main_processes[id]);
+  pproc = s_ncurs_main_processes;
+  while (pproc->id != 0U && i < MAX_PROCESSES)
+  {
+    i++;
+    pproc++;
+  }
+  if (i == MAX_PROCESSES)
+    return NULL;
+
+  memcpy(pproc, &proc, sizeof(NCursProc));
+  s_ncurs_main_process_count += 1U;
   pproc->id = id;
 
   return pproc;
@@ -229,11 +237,11 @@ NCursProc * get_process(uint32_t id)
 {
   if (0U < id)
   {
+    char buffer[128] = {0};
     uint32_t i;
-    NCursProc *proc = NULL;
-    for (i = 0U; i < s_ncurs_main_process_count; i++)
+    NCursProc *proc = NULL, *tmp = NULL;
+    for (i = 0U, tmp = s_ncurs_main_processes; i < s_ncurs_main_process_count; i++, tmp++)
     {
-      NCursProc *tmp = &(s_ncurs_main_processes[i]);
       if (tmp->id == id)
       {
         proc = tmp;
@@ -313,7 +321,7 @@ void clean(NCursProc *proc)
 
 void writelog(NCursProc *proc, const char *message)
 {
-#ifdef _WIFIUI_DEBUG
+#ifdef _SANDBOX_DEBUG
   ticket_lock(&proc->write_lock);
   if (message)
   {
@@ -340,7 +348,7 @@ void writelog(NCursProc *proc, const char *message)
     proc->debuglog = NULL;
   }
   ticket_unlock(&proc->write_lock);
-#endif // _WIFIUI_DEBUG
+#endif // _SANDBOX_DEBUG
 }
 
 // --- Public ---
@@ -399,9 +407,8 @@ void ncurs_quit(uint32_t id)
 
     writelog(proc,
              " !!! Failed to get a process so using the first running process found !!!");
-    for (i = 0U; i < s_ncurs_main_process_count; i++)
+    for (i = 0U, tmp = s_ncurs_main_processes; i < s_ncurs_main_process_count; i++, tmp++)
     {
-      tmp = &(s_ncurs_main_processes[i]);
       if (tmp->running)
       {
         ncurs_quit(tmp->id);
@@ -451,12 +458,22 @@ void ncurs_wait(uint32_t id)
 {
   uint32_t i = 0U;
   NCursProc *proc = get_process(id);
-  writelog(proc, "Waiting for threads");
-  while (i < proc->current_processes)
+  if (proc != NULL)
   {
-    writelog(proc, "Thread finished");
-    pthread_join(proc->processes[i], NULL);
-    i += 1;
+    writelog(proc, "Waiting for threads");
+    while (i < proc->current_processes)
+    {
+      writelog(proc, "Thread finished");
+      pthread_join(proc->processes[i], NULL);
+      i += 1;
+    }
+    writelog(proc, "Done");
   }
-  writelog(proc, "Done");
+  else
+  {
+    proc = get_process(1U);
+    writelog(proc, " !!! Could not get process !!!");
+    clean(proc);
+    raise(SIGINT);
+  }
 }

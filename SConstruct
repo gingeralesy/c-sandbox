@@ -1,6 +1,6 @@
 import sys
 
-cflags = '-iquoteinclude -Wall'
+cflags = '-iquoteinclude -Wall -D_SANDBOX_DEBUG'
 ldflags = '-l:libpcre.a -lpthread -lm -Llib'
 if sys.platform == "win32":
   ldflags += ' -LC:/msys64/mingw64/lib -lWs2_32'

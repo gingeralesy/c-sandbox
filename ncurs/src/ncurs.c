@@ -74,10 +74,10 @@ Pointer queue_input(Pointer params)
 
 Pointer update(Pointer params)
 {
+  static chtype s_chars[MAX_CHAR] = {0};
   NCursProc *proc = (NCursProc *)params;
   uint32_t i = 0U;
   uint64_t fps = 16666667UL; // 1/60 sec
-  chtype chars[MAX_CHAR] = {0};
   struct timespec prev = {0};
   struct timespec cur = {0};
   struct timespec delta = {0};
@@ -88,19 +88,17 @@ Pointer update(Pointer params)
     ticket_lock(&proc->work_lock);
     if (proc->running)
     {
-      memcpy(chars, proc->ch_queue, proc->queue_count);
+      memcpy(s_chars, proc->ch_queue, proc->queue_count);
       count = proc->queue_count;
     }
     proc->queue_count = 0;
     ticket_unlock(&proc->work_lock);
 
-    if (proc->running)
+    for (i = 0U; i < count; i++)
     {
-      for (i = 0; i < count; i++)
-      {
-        if (proc->running)
-          handle_input(proc, chars[i]);
-      }
+      if (!proc->running)
+        break;
+      handle_input(proc, s_chars[i]);
     }
 
     timespec_get(&cur, TIME_UTC);
@@ -183,6 +181,7 @@ void quit(int32_t sig)
       ticket_lock(&proc->work_lock);
       if (proc->running)
         proc->running = false;
+      clean(proc);
       ticket_unlock(&proc->work_lock);
     }
   }
@@ -400,7 +399,6 @@ void ncurs_quit(uint32_t id)
     params = calloc(1, sizeof(uint32_t) + sizeof(int32_t));
     memcpy(params, &id, sizeof(uint32_t));
     memcpy(params + sizeof(uint32_t), &sig, sizeof(int32_t));
-    raise_signal(params);
 
     if (!start_process(proc, &raise_signal, params))
     {
@@ -440,7 +438,7 @@ uint32_t ncurs_start(void (*update_f)(struct timespec *, Pointer),
   uint32_t id = 0U;
   NCursProc *proc = new_process();
 
-  if (0 < proc->id)
+  if (0U < proc->id)
   {
     init(proc);
     id = proc->id;
@@ -467,10 +465,10 @@ uint32_t ncurs_start(void (*update_f)(struct timespec *, Pointer),
 
 void ncurs_wait(uint32_t id)
 {
-  uint32_t i = 0U;
-  NCursProc *proc = get_process(id);
-  if (proc != NULL)
+  if (0U < id)
   {
+    uint32_t i = 0U;
+    NCursProc *proc = get_process(id);
     writelog(proc, "Waiting for threads");
     while (i < proc->current_processes)
     {
@@ -482,7 +480,18 @@ void ncurs_wait(uint32_t id)
   }
   else
   {
-    proc = get_process(1U);
+    NCursProc *proc = get_process(1U);
     writelog(proc, " !!! Could not get process !!!");
   }
+}
+
+WINDOW *ncurs_window(uint32_t id)
+{
+  if (0U < id)
+  {
+    NCursProc *proc = get_process(id);
+    if (proc != NULL && proc->running)
+      return proc->main;
+  }
+  return NULL;
 }

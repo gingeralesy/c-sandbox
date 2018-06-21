@@ -12,5 +12,6 @@ uint32_t ncurs_start(void (*update_f)(struct timespec *, Pointer),
                      void (*handle_key_f)(chtype, Pointer),
                      Pointer keyhandler_data);
 void     ncurs_wait(uint32_t id);
+WINDOW * ncurs_window(uint32_t id);
 
 #endif // __NCURS_H__

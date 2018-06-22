@@ -11,17 +11,25 @@ if int(ARGUMENTS.get('debug', 0)):
 project = ARGUMENTS.get('project', 'ncurs')
 
 env = Environment(CCFLAGS = cflags, LINKFLAGS = ldflags)
-env.ParseConfig('pkg-config --cflags --libs ncursesw freetype2')
+if project == 'ncurs':
+  env.ParseConfig('pkg-config --cflags --libs ncursesw')
+elif project == 'freetype':
+  env.ParseConfig('pkg-config --cflags --libs freetype2')
 
 main_obj = env.Object('obj/main.o', source = [ project + '/src/main.c' ])
 
+if project == 'freetype':
+  freetype_obj = env.Object('obj/freetype.o', source = [ 'freetype/src/freetype.c' ])
+elif project == 'ncurs':
+  ncurs_obj = env.Object('obj/ncurs.o', source = [ 'ncurs/src/ncurs.c' ])
+
+hashmap_obj = env.Object('obj/hashmap.o', source = [ 'hashmap/src/hashmap.c' ])
 memory_obj = env.Object('obj/memory.o', source = [ 'memory/src/memory.c' ])
-ncurs_obj = env.Object('obj/ncurs.o', source = [ 'ncurs/src/ncurs.c' ])
+objects_obj = env.Object('obj/objects.o', source = [ 'objects/src/objects.c' ])
 rbtree_obj = env.Object('obj/rbtree.o', source = [ 'rbtree/src/rbtree.c' ])
 ticket_obj = env.Object('obj/ticket.o', source = [ 'ticket/src/ticket.c' ])
 
-env.Depends(main_obj, [ ncurs_obj ])
-env.Depends(ncurs_obj, [ memory_obj, ticket_obj ])
-env.Depends(memory_obj, [ ticket_obj, rbtree_obj ])
-
-sb_prog = env.Program('bin/sandbox', [ main_obj, ticket_obj, memory_obj, ncurs_obj, rbtree_obj ])
+if project == 'ncurs':
+  sb_prog = env.Program('bin/sandbox', [ main_obj, hashmap_obj, ticket_obj, memory_obj, ncurs_obj, rbtree_obj ])
+elif project == 'freetype':
+  sb_prog = env.Program('bin/sandbox', [ main_obj, freetype_obj, hashmap_obj, ticket_obj, memory_obj, rbtree_obj ])

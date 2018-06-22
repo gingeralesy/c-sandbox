@@ -22,7 +22,7 @@ int ft_main(int argc, char *argv[])
   FT_Error error = FT_Init_FreeType(&library);
   if (error != FT_Err_Ok)
   {
-    fprintf(stderr, "Initialisation error: 0x%x\n", error);
+    fprintf(stderr, "Initialisation error: Code 0x%x\n", error);
     return EXIT_FAILURE;
   }
 
@@ -38,7 +38,7 @@ int ft_main(int argc, char *argv[])
       fprintf(stderr, "Unknown file format!\n");
       break;
     default:
-      fprintf(stderr, "Font load error: 0x%x\n", error);
+      fprintf(stderr, "Font load error: Code 0x%x\n", error);
       break;
     }
     return EXIT_FAILURE;
@@ -47,14 +47,14 @@ int ft_main(int argc, char *argv[])
   error = FT_Set_Pixel_Sizes(face, 0, 24);
   if (error != FT_Err_Ok)
   {
-    fprintf(stderr, "Error setting char size: 0x%x\n", error);
+    fprintf(stderr, "Error setting char size: Code 0x%x\n", error);
     return EXIT_FAILURE;
   }
 
   error = FT_Load_Glyph(face, FT_Get_Char_Index(face, 'g'), FT_LOAD_DEFAULT);
   if (error != FT_Err_Ok)
   {
-    fprintf(stderr, "Error loading glyph: 0x%x\n", error);
+    fprintf(stderr, "Error loading glyph 'g': Code 0x%x\n", error);
     return EXIT_FAILURE;
   }
 

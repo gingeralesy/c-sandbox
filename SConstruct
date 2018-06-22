@@ -18,21 +18,21 @@ if project == 'ncurs' or project == 'wifi':
 elif project == 'freetype':
   env.ParseConfig('pkg-config --cflags --libs freetype2')
 
-main_obj = env.Object('obj/main.o', source = [ project + '/src/main.c' ])
+main_obj = env.Object('obj/main.o', source = [ 'src/' + project +'/main.c' ])
 
 if project == 'freetype':
-  freetype_obj = env.Object('obj/freetype.o', source = [ 'freetype/src/freetype.c' ])
+  freetype_obj = env.Object('obj/freetype.o', source = [ 'src/freetype/freetype.c' ])
 elif project == 'ncurs':
-  ncurs_obj = env.Object('obj/ncurs.o', source = [ 'ncurs/src/ncurs.c' ])
+  ncurs_obj = env.Object('obj/ncurs.o', source = [ 'src/ncurs/ncurs.c' ])
 elif project == 'wifi':
-  ncurs_obj = env.Object('obj/ncurs.o', source = [ 'ncurs/src/ncurs.c' ])
-  wifi_obj = env.Object('obj/wifi.o', source = [ 'wifi/src/wifi.c' ])
+  ncurs_obj = env.Object('obj/ncurs.o', source = [ 'src/ncurs/ncurs.c' ])
+  wifi_obj = env.Object('obj/wifi.o', source = [ 'src/wifi/wifi.c' ])
 
-hashmap_obj = env.Object('obj/hashmap.o', source = [ 'hashmap/src/hashmap.c' ])
-memory_obj = env.Object('obj/memory.o', source = [ 'memory/src/memory.c' ])
-objects_obj = env.Object('obj/objects.o', source = [ 'objects/src/objects.c' ])
-rbtree_obj = env.Object('obj/rbtree.o', source = [ 'rbtree/src/rbtree.c' ])
-ticket_obj = env.Object('obj/ticket.o', source = [ 'ticket/src/ticket.c' ])
+hashmap_obj = env.Object('obj/hashmap.o', source = [ 'src/hashmap/hashmap.c' ])
+memory_obj = env.Object('obj/memory.o', source = [ 'src/memory/memory.c' ])
+objects_obj = env.Object('obj/objects.o', source = [ 'src/objects/objects.c' ])
+rbtree_obj = env.Object('obj/rbtree.o', source = [ 'src/rbtree/rbtree.c' ])
+ticket_obj = env.Object('obj/ticket.o', source = [ 'src/ticket/ticket.c' ])
 
 if project == 'ncurs':
   sb_prog = env.Program('bin/sandbox', [ main_obj, hashmap_obj, ticket_obj, memory_obj, ncurs_obj, rbtree_obj ])

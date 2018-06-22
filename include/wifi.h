@@ -5,9 +5,11 @@
 
 #include <iwlib.h>
 
+#define WIFI_INTERFACE_MAXLEN (16)
+
 typedef struct wifi_status_t
 {
-  char interface[16];
+  char interface[WIFI_INTERFACE_MAXLEN];
   int socket;
   iwrange range;
   wireless_scan_head scan;

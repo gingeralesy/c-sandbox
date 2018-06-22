@@ -10,7 +10,7 @@ bool wifi_init(WifiStatus *status, const char *interface)
   static const char *DEFAULT_INTERFACE = "wlp2s0";
   const char *iface = (interface != NULL ? interface : DEFAULT_INTERFACE);
   int sock = 0;
-  int iface_len = min(strlen(iface), 15);
+  int iface_len = min(strlen(iface), WIFI_INTERFACE_MAXLEN - 1);
 
   sock = iw_sockets_open();
   if (iw_get_range_info(sock, iface, &(status->range)) != 0)
@@ -27,7 +27,8 @@ bool wifi_init(WifiStatus *status, const char *interface)
 bool wifi_scan(WifiStatus *status)
 {
   if (iw_scan(status->socket, status->interface,
-              status->range.we_version_compiled, &(status->scan)) != 0)
+              status->range.we_version_compiled,
+              &(status->scan)) != 0)
   {
     wifi_close(status);
     return false;
@@ -52,9 +53,14 @@ int wifi_main(int argc, char *argv[])
   }
 
   result = status.scan.result;
-  while (NULL != result)
+  while (result != NULL)
   {
-    fprintf(stdout, "%s\n", result->b.essid);
+    iwstats stats = {0};
+    if (iw_get_stats(status.socket, status.interface, &stats, &(status.range), 1) == 0)
+    {
+      fprintf(stdout, "%s: %u/%u\n",
+              result->b.essid, stats.qual.qual, status.range.max_qual.qual);
+    }
     result = result->next;
   }
 

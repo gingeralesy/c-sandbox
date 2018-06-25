@@ -1,33 +1,51 @@
 #include "common.h"
 #include "ncurs.h"
 
+typedef struct game_state_t
+{
+  uint32_t process;
+  chtype current_key;
+  WINDOW *win;
+} GameState;
+
 void handle_key(chtype key, Pointer data)
 {
-  uint32_t *id = (uint32_t *)data;
-  if (id != NULL && 0U < *id)
+  GameState *state = (GameState *)data;
+  if (state != NULL)
+    state->current_key = key;
+}
+
+void update(struct timespec *dt, Pointer data)
+{
+  GameState *state = (GameState *)data;
+  if (state != NULL && 0U < state->process)
   {
-    WINDOW *win = ncurs_window(*id);
-    if (win != NULL)
-      mvwaddch(win, 0, 0, key);
-    if (key == 'q')
-      ncurs_quit(*id);
+    if (state->win == NULL)
+      state->win = ncurs_window(state->process);
+    if (state->current_key != '\0')
+    {
+      if (state->current_key == 'q')
+      {
+        mvwaddstr(state->win, 0, 0, "Quitting...");
+        ncurs_quit(state->process);
+      }
+      else if (state->win != NULL)
+      {
+        mvwaddch(state->win, 0, 0, state->current_key);
+      }
+    }
   }
 }
 
 int main(int argc, char *argv[])
 {
-  uint32_t *data = (uint32_t *)calloc(1, sizeof(uint32_t));
-  uint32_t id = ncurs_start(NULL, NULL, &handle_key, data);
-  if (0U < id)
-  {
-    (*data) = id;
-    ncurs_wait(id);
-  }
-  else
-  {
-    ncurs_quit(id);
-  }
+  GameState state = {0};
 
-  free(data);
+  state.process = ncurs_start(&update, &state, &handle_key, &state);
+  if (0U < state.process)
+    ncurs_wait(state.process);
+  else
+    ncurs_quit(state.process);
+
   return EXIT_SUCCESS;
 }

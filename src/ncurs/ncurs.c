@@ -83,11 +83,11 @@ Pointer update(Pointer params)
   struct timespec delta = {0};
   struct timespec rem = {0};
   
-  erase();
-
   while (proc->running && rem.tv_sec == 0 && rem.tv_nsec == 0)
   {
     uint32_t count = 0U;
+    
+    erase();
     ticket_lock(&proc->work_lock);
     if (proc->running)
     {
@@ -104,6 +104,9 @@ Pointer update(Pointer params)
       handle_input(proc, s_chars[i]);
     }
 
+    if (!proc->running)
+      break;
+
     timespec_get(&cur, TIME_UTC);
     delta.tv_sec = (cur.tv_sec - prev.tv_sec);
     delta.tv_nsec = (cur.tv_nsec - prev.tv_nsec);
@@ -116,6 +119,8 @@ Pointer update(Pointer params)
     if (proc->running && delta.tv_sec == 0 && delta.tv_nsec < fps)
       nanosleep(&delta, &rem);
   }
+  erase();
+
   return NULL;
 }
 

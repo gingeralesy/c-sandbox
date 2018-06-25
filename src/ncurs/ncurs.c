@@ -82,6 +82,9 @@ Pointer update(Pointer params)
   struct timespec cur = {0};
   struct timespec delta = {0};
   struct timespec rem = {0};
+  
+  erase();
+
   while (proc->running && rem.tv_sec == 0 && rem.tv_nsec == 0)
   {
     uint32_t count = 0U;
@@ -161,6 +164,7 @@ void resize(int32_t sig)
       ticket_lock(&proc->work_lock);
       if (proc->running)
       {
+        erase();
         endwin();
         refresh();
       }
@@ -322,9 +326,13 @@ void init(NCursProc *proc)
 
 void clean(NCursProc *proc)
 {
-  writelog(proc, "Cleaning");
+  if (proc != NULL)
+  {
+    writelog(proc, "Cleaning");
+    writelog(proc, NULL);
+  }
+  erase();
   endwin();
-  writelog(proc, NULL);
 }
 
 void writelog(NCursProc *proc, const char *message)
@@ -425,7 +433,7 @@ void ncurs_quit(uint32_t id)
     }
 
     writelog(proc, " !!! No running processes, raising a global SIGINT !!!");
-    endwin();
+    clean(proc);
     raise(SIGINT);
   }
 }
